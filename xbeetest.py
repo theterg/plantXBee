@@ -2,6 +2,8 @@ import serial
 import time
 from xbee import XBee
 import datetime
+import plantmongo
+import sys
 
 class xbeetest:
     def upload(self):
@@ -16,6 +18,10 @@ class xbeetest:
                str(self.rssi)+',\r\n')
         self.fd.flush()
         print "packetloss: "+str( time.time()-self.starttime-self.packets+2 )
+        try:
+            self.mongo.publish(self)
+        except:
+            pass
     def parse(self, data):
         self.rssi = ord(data['rssi'])
         self.addr = data['source_addr']
@@ -39,7 +45,9 @@ class xbeetest:
         elif data['id'] == 'rx_io_data':
             self.packets += 1
             self.moisture = data['samples'][0]['adc-0']
-    def __init__(self, port, baud):
+    def __init__(self, port, baud, addr):
+        self.addr = addr
+        self.mongo = plantmongo.plantmongo(addr)
         now = datetime.datetime.now()
         datestr = now.strftime("%m%d%y_%H%M")
         self.fd = open('logfile_'+datestr+'.csv','w')
@@ -63,7 +71,10 @@ class xbeetest:
         self.ser.close()
 
 if __name__ == '__main__':
-    xbt = xbeetest('/dev/ttyUSB0',9600)
+    if len(sys.argv) != 3:
+        print "usage: "+sys.argv[0]+" <serial port> <mongodb address>"
+        sys.exit(1)
+    xbt = xbeetest(sys.argv[1],9600,sys.argv[2])
     while True:
         try:
             time.sleep(0.5)
