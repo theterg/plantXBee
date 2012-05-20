@@ -1,10 +1,11 @@
 import serial
 import time
 from xbee import XBee
+import datetime
 
 class xbeetest:
     def upload(self):
-        self.fd.write(str(time.time() - self.starttime)+','+\
+        self.fd.write(str(time.time())+','+\
                str(self.temp)+','+\
                str(self.moisture)+','+\
                str(self.humidity)+','+\
@@ -14,10 +15,14 @@ class xbeetest:
                str(self.batt)+','+\
                str(self.rssi)+',\r\n')
         self.fd.flush()
+        print "packetloss: "+str( time.time()-self.starttime-self.packets+2 )
     def parse(self, data):
         self.rssi = ord(data['rssi'])
         self.addr = data['source_addr']
+        if (self.addr != '\x00\x01'):
+            return
         if data['id'] == 'rx':
+            self.packets += 1
             weather = data['rf_data'].split(',')
             if weather[0].find('RESET') != -1:
                 return;
@@ -28,15 +33,19 @@ class xbeetest:
                 self.pressure = float(weather[4])
                 self.light = float(weather[5])
                 self.batt = float(weather[6])
-            except ValueError:
+            except:
                 return
             self.upload()
         elif data['id'] == 'rx_io_data':
+            self.packets += 1
             self.moisture = data['samples'][0]['adc-0']
     def __init__(self, port, baud):
-        self.fd = open('logfile.csv','w')
+        now = datetime.datetime.now()
+        datestr = now.strftime("%m%d%y_%H%M")
+        self.fd = open('logfile_'+datestr+'.csv','w')
         self.fd.write('time,temp,moisture,humidity,dewpoint,pressure,light'\
                 ',batt,rssi,\r\n')
+        self.packets = 0
         self.moisture = -1
         self.temp = 0.0
         self.humidity = -1
